@@ -22,6 +22,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { GoogleGenAI } from '@google/genai';
 import { createFeedIntake } from './v12-feed-intake';
+import { createRmpmIntake } from './v12-rmpm-intake';
 
 import {
   createStore,
@@ -182,6 +183,25 @@ app.use(
 // Accepted events queue in ecosystem-inbox.jsonl and GET /api/ecosystem/feed/inbox
 // as Apex's admission-review queue for the Atlas Galaxy.
 app.use('/api/ecosystem/feed', createFeedIntake({ serviceId: 'apexatlas' }));
+
+// R.M.P.M → ApexAtlas. The operations R.M.P.M sends that had nowhere to land:
+// the marketable product feed (Article XIV §14.11), commission acknowledgement
+// and delivery (§14.6). Without them each reached a 404 that a single-page
+// front end returns as 200 with an HTML body, so R.M.P.M's client threw while
+// parsing JSON and the error named the wrong layer.
+//
+// ApexAtlas holds a critical veto: Article IX §9.2 admits data to the Atlas
+// Galaxy only on an ACCEPTED verdict and an admission token, and §9.3 forbids
+// re-submission of a refusal without material change. That gate is exercised
+// over this channel, so the channel has to exist.
+//
+// No `federate`: ApexAtlas is not a direct-interface origin under §9.5, so it
+// has nobody to federate and the router refuses every attempt honestly rather
+// than inventing an identity.
+//
+// Same reason as the line above for being here: the HMAC covers raw bytes, so
+// this must precede express.json().
+app.use('/api', createRmpmIntake({ serviceId: 'apexatlas' }));
 
 app.use(express.json({ limit: '256kb' }));
 app.use(cookieParser());
